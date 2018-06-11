@@ -10,8 +10,46 @@
 #include "sim3.hpp"
 #include "so2.hpp"
 #include "so3.hpp"
+#include <deque>
 
 namespace Sophus {
+
+  template <class SequenceContainer>
+  optional<typename SequenceContainer::value_type> iterativeMean(
+      SequenceContainer const& foo_Ts_bar, std::deque< int > const& deque_weight,int weight_sum,int max_num_iterations) {
+    size_t N = foo_Ts_bar.size();
+    SOPHUS_ENSURE(N >= 1, "N must be >= 1.");
+
+    using Group = typename SequenceContainer::value_type;
+    using Scalar = typename Group::Scalar;
+    using Tangent = typename Group::Tangent;
+
+    // This implements the algorithm in the beginning of Sec. 4.2 in
+    // ftp://ftp-sop.inria.fr/epidaure/Publications/Arsigny/arsigny_rr_biinvariant_average.pdf.
+    Group foo_T_average = foo_Ts_bar.front();
+    Scalar w = Scalar(1. / N);
+    for (int i = 0; i < max_num_iterations; ++i) {
+      Tangent average;
+      setToZero<Tangent>(average);
+      int j=0;
+      for (Group const& foo_T_bar : foo_Ts_bar) {
+        w = Scalar(1.0*deque_weight[j]/weight_sum);
+        j++;
+        average += w * (foo_T_average.inverse() * foo_T_bar).log();
+      }
+      Group foo_T_newaverage = foo_T_average * Group::exp(average);
+      if (squaredNorm<Tangent>(
+              (foo_T_newaverage.inverse() * foo_T_average).log()) <
+          Constants<Scalar>::epsilon()) {
+        return foo_T_newaverage;
+      }
+
+      foo_T_average = foo_T_newaverage;
+    }
+    // LCOV_EXCL_START
+    return nullopt;
+    // LCOV_EXCL_STOP
+  }
 
 template <class SequenceContainer>
 optional<typename SequenceContainer::value_type> iterativeMean(
@@ -208,6 +246,15 @@ enable_if_t<
     optional<typename SequenceContainer::value_type>>
 average(SequenceContainer const& foo_Ts_bar, int max_num_iterations = 20) {
   return iterativeMean(foo_Ts_bar, max_num_iterations);
+}
+
+template <class SequenceContainer,
+          class Scalar = typename SequenceContainer::value_type::Scalar>
+enable_if_t<
+    std::is_same<typename SequenceContainer::value_type, SE3<Scalar>>::value,
+    optional<typename SequenceContainer::value_type>>
+average(SequenceContainer const& foo_Ts_bar,std::deque< int > const& deque_weight,int weight_sum, int max_num_iterations = 20) {
+  return iterativeMean(foo_Ts_bar,deque_weight,weight_sum, max_num_iterations);
 }
 
 }  // namespace Sophus
