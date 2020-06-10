@@ -25,6 +25,8 @@ class LieGroupTests {
   using Transformation = typename LieGroup::Transformation;
   using Tangent = typename LieGroup::Tangent;
   using Point = typename LieGroup::Point;
+  using HomogeneousPoint = typename LieGroup::HomogeneousPoint;
+  using ConstPointMap = Eigen::Map<const Point>;
   using Line = typename LieGroup::Line;
   using Adjoint = typename LieGroup::Adjoint;
   static int constexpr N = LieGroup::N;
@@ -139,9 +141,9 @@ class LieGroupTests {
     bool passed = true;
     for (size_t j = 0; j < tangent_vec_.size(); ++j) {
       Tangent a = tangent_vec_[j];
-      Eigen::Matrix<Scalar, DoF, num_parameters> J = LieGroup::Dx_exp_x(a);
-      Eigen::Matrix<Scalar, DoF, num_parameters> J_num =
-          vectorFieldNumDiff<Scalar, DoF, num_parameters>(
+      Eigen::Matrix<Scalar, num_parameters, DoF> J = LieGroup::Dx_exp_x(a);
+      Eigen::Matrix<Scalar, num_parameters, DoF> J_num =
+          vectorFieldNumDiff<Scalar, num_parameters, DoF>(
               [](Tangent const& x) -> Sophus::Vector<Scalar, num_parameters> {
                 return LieGroup::exp(x).params();
               },
@@ -153,9 +155,9 @@ class LieGroupTests {
 
     Tangent o;
     setToZero(o);
-    Eigen::Matrix<Scalar, DoF, num_parameters> J = LieGroup::Dx_exp_x_at_0();
-    Eigen::Matrix<Scalar, DoF, num_parameters> J_num =
-        vectorFieldNumDiff<Scalar, DoF, num_parameters>(
+    Eigen::Matrix<Scalar, num_parameters, DoF> J = LieGroup::Dx_exp_x_at_0();
+    Eigen::Matrix<Scalar, num_parameters, DoF> J_num =
+        vectorFieldNumDiff<Scalar, num_parameters, DoF>(
             [](Tangent const& x) -> Sophus::Vector<Scalar, num_parameters> {
               return LieGroup::exp(x).params();
             },
@@ -165,9 +167,9 @@ class LieGroupTests {
     for (size_t i = 0; i < group_vec_.size(); ++i) {
       LieGroup T = group_vec_[i];
 
-      Eigen::Matrix<Scalar, DoF, num_parameters> J = T.Dx_this_mul_exp_x_at_0();
-      Eigen::Matrix<Scalar, DoF, num_parameters> J_num =
-          vectorFieldNumDiff<Scalar, DoF, num_parameters>(
+      Eigen::Matrix<Scalar, num_parameters, DoF> J = T.Dx_this_mul_exp_x_at_0();
+      Eigen::Matrix<Scalar, num_parameters, DoF> J_num =
+          vectorFieldNumDiff<Scalar, num_parameters, DoF>(
               [T](Tangent const& x) -> Sophus::Vector<Scalar, num_parameters> {
                 return (T * LieGroup::exp(x)).params();
               },
@@ -188,6 +190,20 @@ class LieGroupTests {
               bool>
   additionalDerivativeTest() {
     return true;
+  }
+
+  bool productTest() {
+    bool passed = true;
+
+    for (size_t i = 0; i < group_vec_.size() - 1; ++i) {
+      LieGroup T1 = group_vec_[i];
+      LieGroup T2 = group_vec_[i + 1];
+      LieGroup mult = T1 * T2;
+      T1 *= T2;
+      SOPHUS_TEST_APPROX(passed, T1.matrix(), mult.matrix(), kSmallEps,
+                         "Product case: %", i);
+    }
+    return passed;
   }
 
   bool expLogTest() {
@@ -220,11 +236,23 @@ class LieGroupTests {
     for (size_t i = 0; i < group_vec_.size(); ++i) {
       for (size_t j = 0; j < point_vec_.size(); ++j) {
         Point const& p = point_vec_[j];
-        Transformation T = group_vec_[i].matrix();
         Point point1 = group_vec_[i] * p;
-        Point point2 = map(T, p);
-        SOPHUS_TEST_APPROX(passed, point1, point2, kSmallEps,
+
+        HomogeneousPoint hp = p.homogeneous();
+        HomogeneousPoint hpoint1 = group_vec_[i] * hp;
+
+        ConstPointMap p_map(p.data());
+        Point pointmap1 = group_vec_[i] * p_map;
+
+        Transformation T = group_vec_[i].matrix();
+        Point gt_point1 = map(T, p);
+
+        SOPHUS_TEST_APPROX(passed, point1, gt_point1, kSmallEps,
                            "Transform point case: %", i);
+        SOPHUS_TEST_APPROX(passed, hpoint1.hnormalized().eval(), gt_point1,
+                           kSmallEps, "Transform homogeneous point case: %", i);
+        SOPHUS_TEST_APPROX(passed, pointmap1, gt_point1, kSmallEps,
+                           "Transform map point case: %", i);
       }
     }
     return passed;
@@ -435,6 +463,7 @@ class LieGroupTests {
     bool passed = true;
     passed &= adjointTest();
     passed &= contructorAndAssignmentTest();
+    passed &= productTest();
     passed &= expLogTest();
     passed &= groupActionTest();
     passed &= lineActionTest();
@@ -485,7 +514,8 @@ std::vector<SE3<Scalar>, Eigen::aligned_allocator<SE3<Scalar>>> getTestSE3s() {
   se3_vec.push_back(SE3<Scalar>(
       SO3<Scalar>::exp(Vector3<Scalar>(Scalar(0.2), Scalar(0.5), Scalar(-1.0))),
       Vector3<Scalar>(Scalar(10), Scalar(0), Scalar(0))));
-  se3_vec.push_back(SE3<Scalar>::trans(Scalar(0), Scalar(100), Scalar(5)));
+  se3_vec.push_back(
+      SE3<Scalar>::trans(Vector3<Scalar>(Scalar(0), Scalar(100), Scalar(5))));
   se3_vec.push_back(SE3<Scalar>::rotZ(Scalar(0.00001)));
   se3_vec.push_back(
       SE3<Scalar>::trans(Scalar(0), Scalar(-0.00000001), Scalar(0.0000000001)) *
@@ -520,6 +550,7 @@ std::vector<SE2<T>, Eigen::aligned_allocator<SE2<T>>> getTestSE2s() {
   se2_vec.push_back(SE2<T>());
   se2_vec.push_back(SE2<T>(SO2<T>(0.2), Vector2<T>(10, 0)));
   se2_vec.push_back(SE2<T>::transY(100));
+  se2_vec.push_back(SE2<T>::trans(Vector2<T>(1, 2)));
   se2_vec.push_back(SE2<T>(SO2<T>(-1.), Vector2<T>(20, -1)));
   se2_vec.push_back(
       SE2<T>(SO2<T>(0.00001), Vector2<T>(-0.00000001, 0.0000000001)));

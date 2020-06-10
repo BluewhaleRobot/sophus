@@ -1,6 +1,10 @@
-#ifndef SOPHUS_TYEPES_HPP
-#define SOPHUS_TYEPES_HPP
+/// @file
+/// Common type aliases.
 
+#ifndef SOPHUS_TYPES_HPP
+#define SOPHUS_TYPES_HPP
+
+#include <type_traits>
 #include "common.hpp"
 
 namespace Sophus {
@@ -153,39 +157,40 @@ class Transpose<Matrix<Scalar, M, N>> {
 };
 }  // namespace details
 
-// Returns maximum metric between two points ``p0`` and ``p1``, with ``p``
-// being a matrix or a scalar.
-//
+/// Returns maximum metric between two points ``p0`` and ``p1``, with ``p0, p1``
+/// being matrices or a scalars.
+///
 template <class T>
 auto maxMetric(T const& p0, T const& p1)
     -> decltype(details::MaxMetric<T>::impl(p0, p1)) {
   return details::MaxMetric<T>::impl(p0, p1);
 }
 
-// Sets point ``p`` to zero, with ``p`` being a matrix or a scalar.
-//
+/// Sets point ``p`` to zero, with ``p`` being a matrix or a scalar.
+///
 template <class T>
 void setToZero(T& p) {
   return details::SetToZero<T>::impl(p);
 }
 
-// Sets point ``p`` to zero, with ``p`` being a matrix or a scalar.
-//
+/// Sets ``i``th component of ``p`` to ``value``, with ``p`` being a
+/// matrix or a scalar. If ``p`` is a scalar, ``i`` must be ``0``.
+///
 template <class T, class Scalar>
-void setElementAt(T& p, Scalar value, int at) {
-  return details::SetElementAt<T, Scalar>::impl(p, value, at);
+void setElementAt(T& p, Scalar value, int i) {
+  return details::SetElementAt<T, Scalar>::impl(p, value, i);
 }
 
-// Returns the squared 2-norm of ``p``, with ``p`` being a vector or a scalar.
-//
+/// Returns the squared 2-norm of ``p``, with ``p`` being a vector or a scalar.
+///
 template <class T>
 auto squaredNorm(T const& p) -> decltype(details::SquaredNorm<T>::impl(p)) {
   return details::SquaredNorm<T>::impl(p);
 }
 
-// Returns ``p.transpose()`` if ``p`` is a matrix, and simply ``p`` if m is a
-// scalar.
-//
+/// Returns ``p.transpose()`` if ``p`` is a matrix, and simply ``p`` if m is a
+/// scalar.
+///
 template <class T>
 auto transpose(T const& p) -> decltype(details::Transpose<T>::impl(T())) {
   return details::Transpose<T>::impl(p);
@@ -211,13 +216,21 @@ struct GetScalar<Matrix<Scalar_, M, N>> {
   using Scalar = Scalar_;
 };
 
-// Planes in 3d are hyperplanes.
+/// If the Vector type is of fixed size, then IsFixedSizeVector::value will be
+/// true.
+template <typename Vector, int NumDimensions,
+          typename = typename std::enable_if<
+              Vector::RowsAtCompileTime == NumDimensions &&
+              Vector::ColsAtCompileTime == 1>::type>
+struct IsFixedSizeVector : std::true_type {};
+
+/// Planes in 3d are hyperplanes.
 template <class T>
 using Plane3 = Eigen::Hyperplane<T, 3>;
 using Plane3d = Plane3<double>;
 using Plane3f = Plane3<float>;
 
-// Lines in 2d are hyperplanes.
+/// Lines in 2d are hyperplanes.
 template <class T>
 using Line2 = Eigen::Hyperplane<T, 2>;
 using Line2d = Line2<double>;
@@ -225,4 +238,4 @@ using Line2f = Line2<float>;
 
 }  // namespace Sophus
 
-#endif  // SOPHUS_TYEPES_HPP
+#endif  // SOPHUS_TYPES_HPP

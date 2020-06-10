@@ -30,11 +30,32 @@ class So3:
     def __repr__(self):
         return "So3:" + repr(self.q)
 
+    def inverse(self):
+        return So3(self.q.conj())
+
     @staticmethod
     def hat(o):
         return sympy.Matrix([[0, -o[2], o[1]],
                              [o[2], 0, -o[0]],
                              [-o[1], o[0], 0]])
+    
+    """vee-operator
+   
+    It takes the 3x3-matrix representation ``Omega`` and maps it to the
+    corresponding vector representation of Lie algebra.
+   
+    This is the inverse of the hat-operator, see above.
+   
+    Precondition: ``Omega`` must have the following structure:
+   
+                   |  0 -c  b |
+                   |  c  0 -a |
+                   | -b  a  0 | 
+    """
+    @staticmethod
+    def vee(Omega):
+        v = sophus.Vector3(Omega.row(2).col(1), Omega.row(0).col(2), Omega.row(1).col(0))
+        return v
 
     def matrix(self):
         """ returns matrix representation """
@@ -73,22 +94,23 @@ class So3:
 
     @staticmethod
     def calc_Dx_exp_x(x):
-        return sympy.Matrix(3, 4, lambda r, c:
-                            sympy.diff(So3.exp(x)[c], x[r, 0]))
+        return sympy.Matrix(4, 3, lambda r, c:
+                            sympy.diff(So3.exp(x)[r], x[c]))
 
     @staticmethod
     def Dx_exp_x_at_0():
-        return sympy.Matrix([[0.5, 0.0, 0.0, 0.0],
-                             [0.0, 0.5, 0.0, 0.0],
-                             [0.0, 0.0, 0.5, 0.0]])
+        return sympy.Matrix([[0.5, 0.0, 0.0],
+                             [0.0, 0.5, 0.0],
+                             [0.0, 0.0, 0.5],
+                             [0.0, 0.0, 0.0]])
 
     @staticmethod
     def calc_Dx_exp_x_at_0(x):
         return So3.calc_Dx_exp_x(x).subs(x[0], 0).subs(x[1], 0).limit(x[2], 0)
 
     def calc_Dx_this_mul_exp_x_at_0(self, x):
-        return sympy.Matrix(3, 4, lambda r, c:
-                            sympy.diff((self * So3.exp(x))[c], x[r, 0]))\
+        return sympy.Matrix(4, 3, lambda r, c:
+                            sympy.diff((self * So3.exp(x))[r], x[c]))\
             .subs(x[0], 0).subs(x[1], 0).limit(x[2], 0)
 
     def calc_Dx_exp_x_mul_this_at_0(self, x):
@@ -124,7 +146,7 @@ class So3:
     def Dxi_exp_x_matrix(x, i):
         R = So3.exp(x)
         Dx_exp_x = So3.calc_Dx_exp_x(x)
-        l = [So3.Dxi_x_matrix(R, j) * Dx_exp_x[i, j] for j in [0, 1, 2, 3]]
+        l = [Dx_exp_x[j, i] * So3.Dxi_x_matrix(R, j) for j in [0, 1, 2, 3]]
         return functools.reduce((lambda a, b: a + b), l)
 
     @staticmethod
@@ -176,7 +198,7 @@ class TestSo3(unittest.TestCase):
     def test_derivatives(self):
         self.assertEqual(sympy.simplify(So3.calc_Dx_exp_x_at_0(self.omega) -
                                         So3.Dx_exp_x_at_0()),
-                         sympy.Matrix.zeros(3, 4))
+                         sympy.Matrix.zeros(4, 3))
 
         for i in [0, 1, 2, 3]:
             self.assertEqual(sympy.simplify(So3.calc_Dxi_x_matrix(self.a, i) -

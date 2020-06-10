@@ -1,3 +1,6 @@
+/// @file
+/// Common functionality.
+
 #ifndef SOPHUS_COMMON_HPP
 #define SOPHUS_COMMON_HPP
 
@@ -110,7 +113,7 @@ void ensureFailed(char const* function, char const* file, int line,
   ((expr) ? ((void)0)                                \
           : ::Sophus::ensureFailed(                  \
                 SOPHUS_FUNCTION, __FILE__, __LINE__, \
-                Sophus::details::FormatString(##__VA_ARGS__).c_str()))
+                Sophus::details::FormatString(__VA_ARGS__).c_str()))
 #else
 // LCOV_EXCL_START
 
@@ -148,7 +151,9 @@ struct Constants {
     return sqrt(epsilon());
   }
 
-  SOPHUS_FUNC static Scalar pi() { return Scalar(M_PI); }
+  SOPHUS_FUNC static Scalar pi() {
+    return Scalar(3.141592653589793238462643383279502884);
+  }
 };
 
 template <>
@@ -159,21 +164,24 @@ struct Constants<float> {
 
   SOPHUS_FUNC static float epsilonSqrt() { return std::sqrt(epsilon()); }
 
-  SOPHUS_FUNC static float constexpr pi() { return static_cast<float>(M_PI); }
+  SOPHUS_FUNC static float constexpr pi() {
+    return 3.141592653589793238462643383279502884f;
+  }
 };
 
-// Leightweight optional implementation which require ``T`` to have a
-// default constructor.
-//
-// TODO: Replace with std::optional once Sophus moves to c++17.
-//
+/// Nullopt type of lightweight optional class.
 struct nullopt_t {
   explicit constexpr nullopt_t() {}
 };
 
 constexpr nullopt_t nullopt{};
-template <class T>
 
+/// Lightweight optional implementation which requires ``T`` to have a
+/// default constructor.
+///
+/// TODO: Replace with std::optional once Sophus moves to c++17.
+///
+template <class T>
 class optional {
  public:
   optional() : is_valid_(false) {}

@@ -49,13 +49,32 @@ class Se3:
     def __repr__(self):
         return "Se3: [" + repr(self.so3) + " " + repr(self.t)
 
+    def inverse(self):
+        invR = self.so3.inverse()
+        return Se3(invR, invR * (-1 * self.t))
+
     @staticmethod
     def hat(v):
+        """ R^6 => R^4x4  """
+        """ returns 4x4-matrix representation ``Omega`` """
         upsilon = sophus.Vector3(v[0], v[1], v[2])
         omega = sophus.Vector3(v[3], v[4], v[5])
         return sophus.So3.hat(omega).\
             row_join(upsilon).\
             col_join(sympy.Matrix.zeros(1, 4))
+    
+    @staticmethod
+    def vee(Omega):
+        """ R^4x4 => R^6 """
+        """ returns 6-vector representation of Lie algebra """
+        """ This is the inverse of the hat-operator """
+        
+        head = sophus.Vector3(Omega[0,3], Omega[1,3], Omega[2,3])
+        tail = sophus.So3.vee(Omega[0:3,0:3])
+        upsilon_omega = \
+            sophus.Vector6(head[0], head[1], head[2], tail[0], tail[1], tail[2])
+        return upsilon_omega
+            
 
     def matrix(self):
         """ returns matrix representation """
@@ -84,22 +103,23 @@ class Se3:
 
     @staticmethod
     def calc_Dx_exp_x(x):
-        return sympy.Matrix(6, 7, lambda r, c:
-                            sympy.diff(Se3.exp(x)[c], x[r, 0]))
+        return sympy.Matrix(7, 6, lambda r, c:
+                            sympy.diff(Se3.exp(x)[r], x[c]))
 
     @staticmethod
     def Dx_exp_x_at_0():
-        return sympy.Matrix([[0, 0, 0, 0, 1, 0, 0],
-                             [0, 0, 0, 0, 0, 1, 0],
-                             [0, 0, 0, 0, 0, 0, 1],
-                             [0.5, 0, 0, 0, 0, 0, 0],
-                             [0, 0.5, 0, 0, 0, 0, 0],
-                             [0, 0, 0.5, 0, 0, 0, 0]])
+        return sympy.Matrix([[0.0, 0.0, 0.0, 0.5, 0.0, 0.0],
+                             [0.0, 0.0, 0.0, 0.0, 0.5, 0.0],
+                             [0.0, 0.0, 0.0, 0.0, 0.0, 0.5],
+                             [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                             [1.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                             [0.0, 1.0, 0.0, 0.0, 0.0, 0.0],
+                             [0.0, 0.0, 1.0, 0.0, 0.0, 0.0]])
 
     def calc_Dx_this_mul_exp_x_at_0(self, x):
         v = Se3.exp(x)
-        return sympy.Matrix(6, 7, lambda r, c:
-                            sympy.diff((self * Se3.exp(x))[c], x[r, 0])). \
+        return sympy.Matrix(7, 6, lambda r, c:
+                            sympy.diff((self * Se3.exp(x))[r], x[c])). \
             subs(x[0], 0).subs(x[1], 0).subs(x[2], 0).\
             subs(x[3], 0).subs(x[4], 0).limit(x[5], 0)
 
@@ -127,7 +147,7 @@ class Se3:
     def Dxi_exp_x_matrix(x, i):
         T = Se3.exp(x)
         Dx_exp_x = Se3.calc_Dx_exp_x(x)
-        l = [Se3.Dxi_x_matrix(T, j) * Dx_exp_x[i, j] for j in range(0, 7)]
+        l = [Dx_exp_x[j, i] * Se3.Dxi_x_matrix(T, j) for j in range(0, 7)]
         return functools.reduce((lambda a, b: a + b), l)
 
     @staticmethod
@@ -185,7 +205,7 @@ class TestSe3(unittest.TestCase):
         self.assertEqual(sympy.simplify(
             Se3.calc_Dx_exp_x_at_0(self.upsilon_omega) -
             Se3.Dx_exp_x_at_0()),
-            sympy.Matrix.zeros(6, 7))
+            sympy.Matrix.zeros(7, 6))
 
         for i in range(0, 7):
             self.assertEqual(sympy.simplify(Se3.calc_Dxi_x_matrix(self.a, i) -
