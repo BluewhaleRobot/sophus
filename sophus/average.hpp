@@ -17,7 +17,7 @@
 
 namespace Sophus {
 
-  template <class SequenceContainer>
+template <class SequenceContainer>
   optional<typename SequenceContainer::value_type> iterativeMean(
       SequenceContainer const& foo_Ts_bar, std::deque< int > const& deque_weight,int weight_sum,int max_num_iterations) {
     size_t N = foo_Ts_bar.size();
@@ -54,6 +54,10 @@ namespace Sophus {
     // LCOV_EXCL_STOP
   }
 
+/// Calculates mean iteratively.
+///
+/// Returns ``nullopt`` if it does not converge.
+///
 template <class SequenceContainer>
 optional<typename SequenceContainer::value_type> iterativeMean(
     SequenceContainer const& foo_Ts_bar, int max_num_iterations) {
